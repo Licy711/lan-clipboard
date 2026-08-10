@@ -156,9 +156,12 @@ const CORS_TIP_BLOCK =
   `AllowedOrigins: ["*"]\nAllowedMethods: ["GET","PUT","HEAD"]\nAllowedHeaders: ["*"]\nExposeHeaders: ["ETag"]\nMaxAgeSeconds: 3600`;
 
 // =============================
-// Swiper cards 效果：卡片堆叠叠层轮播
+// Swiper cards 效果：卡片堆叠叠层轮播（简约版）
 // 参考: https://www.swiper.com.cn/demo/255-effect-cards.html
 // =============================
+const CARD_W = 240;
+const CARD_H = 240;
+
 function CardCarousel({ images, onOpen }: { images: Attachment[]; onOpen: (index: number) => void }) {
   const [cur, setCur] = useState(0);
   const [expanded, setExpanded] = useState(false);
@@ -196,6 +199,18 @@ function CardCarousel({ images, onOpen }: { images: Attachment[]; onOpen: (index
               onClick={(e) => { e.stopPropagation(); onOpen(i); }}
             >
               <img src={img.url} alt={img.name} className="w-full h-full object-cover" draggable={false} />
+              {/* hover 下载按钮 */}
+              <a
+                href={img.url}
+                download={img.name}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="absolute top-1.5 right-1.5 w-7 h-7 rounded-lg bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-black/80 transition"
+                title="下载"
+              >
+                <Download className="w-3.5 h-3.5" />
+              </a>
               <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent px-2 py-1">
                 <span className="text-[9px] font-mono text-zinc-300 truncate block">{img.name}</span>
               </div>
@@ -214,105 +229,89 @@ function CardCarousel({ images, onOpen }: { images: Attachment[]; onOpen: (index
 
   // ---- 轮播模式：Swiper cards 堆叠效果 ----
   return (
-    <div className="relative w-full mx-auto select-none" style={{ maxWidth: 360 }}
+    <div
+      className="relative mx-auto select-none"
+      style={{ width: CARD_W, height: CARD_H + 50 }}
       onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}
       onMouseDown={onMouseDown} onMouseUp={onMouseUp} onMouseLeave={() => { dragXRef.current = null; }}
     >
-      {/* 卡片堆叠区 */}
-      <div className="relative mx-auto" style={{ height: 280 }}>
-        <div className="relative w-full h-full" style={{ perspective: '1200px' }}>
-          {images.map((img, i) => {
-            const offset = i - cur; // 0 = 当前，正数 = 后面，负数 = 已翻过
-            const absOff = Math.abs(offset);
-            const isActive = offset === 0;
+      {/* 卡片堆叠区（固定宽高） */}
+      <div className="relative mx-auto" style={{ width: CARD_W, height: CARD_H, perspective: '1200px' }}>
+        {images.map((img, i) => {
+          const offset = i - cur;
+          const absOff = Math.abs(offset);
+          const isActive = offset === 0;
 
-            // 已翻过的卡片（offset < 0）：向上飞出 + 透明
-            if (offset < 0) {
-              return (
-                <div
-                  key={i}
-                  className="absolute inset-0 rounded-2xl overflow-hidden bg-zinc-900 shadow-2xl"
-                  style={{
-                    transform: `translateY(-60%) scale(0.85) rotate(-8deg)`,
-                    opacity: 0,
-                    zIndex: 0,
-                    transition: 'all 400ms cubic-bezier(.22,1,.36,1)',
-                    pointerEvents: 'none',
-                  }}
-                >
-                  <img src={img.url} alt={img.name} className="w-full h-full object-cover" draggable={false} />
-                </div>
-              );
-            }
-
-            // 后面堆叠的卡片（offset > 0）：向下偏移 + 缩小 + 旋转
-            const translateY = absOff * 14;
-            const scale = 1 - absOff * 0.06;
-            const rotate = absOff * 2.5;
-            const opacity = absOff > 3 ? 0 : 1 - absOff * 0.15;
-            const zIndex = 100 - absOff;
-
+          // 已翻过的卡片：向上飞出 + 透明
+          if (offset < 0) {
             return (
               <div
                 key={i}
-                className="absolute inset-0 rounded-2xl overflow-hidden border border-white/10 bg-zinc-900 shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
+                className="absolute rounded-2xl overflow-hidden bg-zinc-900 shadow-2xl"
                 style={{
-                  transform: `translateY(${translateY}px) scale(${scale}) rotate(${rotate}deg)`,
-                  opacity,
-                  zIndex,
+                  width: CARD_W, height: CARD_H,
+                  left: 0, top: 0,
+                  transform: `translateY(-60%) scale(0.85) rotate(-8deg)`,
+                  opacity: 0,
+                  zIndex: 0,
                   transition: 'all 400ms cubic-bezier(.22,1,.36,1)',
-                  pointerEvents: isActive ? 'auto' : 'none',
+                  pointerEvents: 'none',
                 }}
-                onClick={(e) => { e.stopPropagation(); if (isActive) onOpen(i); else setCur(i); }}
               >
                 <img src={img.url} alt={img.name} className="w-full h-full object-cover" draggable={false} />
-                {isActive && (
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
-                )}
               </div>
             );
-          })}
-        </div>
-      </div>
+          }
 
-      {/* 底部控制条 */}
-      <div className="flex items-center justify-between px-1 mt-3">
-        <button
-          onClick={(e) => { e.stopPropagation(); goto(-1); }}
-          disabled={cur === 0}
-          className="p-1.5 rounded-full bg-zinc-800/80 text-zinc-300 hover:bg-zinc-700 disabled:opacity-30 shrink-0 transition"
-          aria-label="上一张"
-        >
-          <ChevronLeft className="w-4 h-4" />
-        </button>
+          // 后面堆叠的卡片
+          const translateY = absOff * 14;
+          const scale = 1 - absOff * 0.06;
+          const rotate = absOff * 2.5;
+          const opacity = absOff > 3 ? 0 : 1 - absOff * 0.15;
+          const zIndex = 100 - absOff;
 
-        <div className="flex items-center gap-1.5 flex-wrap justify-center">
-          {images.map((_, i) => (
-            <button
+          return (
+            <div
               key={i}
-              aria-label={`第 ${i + 1} 张`}
-              onClick={(e) => { e.stopPropagation(); setCur(i); }}
-              className={`rounded-full transition-all ${
-                i === cur ? 'w-5 h-2 bg-blue-500' : 'w-2 h-2 bg-zinc-700 hover:bg-zinc-600'
-              }`}
-            />
-          ))}
-        </div>
-
-        <button
-          onClick={(e) => { e.stopPropagation(); goto(1); }}
-          disabled={cur === len - 1}
-          className="p-1.5 rounded-full bg-zinc-800/80 text-zinc-300 hover:bg-zinc-700 disabled:opacity-30 shrink-0 transition"
-          aria-label="下一张"
-        >
-          <ChevronRight className="w-4 h-4" />
-        </button>
+              className="absolute rounded-2xl overflow-hidden border border-white/10 bg-zinc-900 shadow-[0_8px_32px_rgba(0,0,0,0.5)] group"
+              style={{
+                width: CARD_W, height: CARD_H,
+                left: 0, top: 0,
+                transform: `translateY(${translateY}px) scale(${scale}) rotate(${rotate}deg)`,
+                opacity,
+                zIndex,
+                transition: 'all 400ms cubic-bezier(.22,1,.36,1)',
+                pointerEvents: isActive ? 'auto' : 'none',
+              }}
+              onClick={(e) => { e.stopPropagation(); if (isActive) onOpen(i); else setCur(i); }}
+            >
+              <img src={img.url} alt={img.name} className="w-full h-full object-cover" draggable={false} />
+              {isActive && (
+                <>
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+                  {/* hover 下载按钮 */}
+                  <a
+                    href={img.url}
+                    download={img.name}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="absolute top-2 right-2 w-8 h-8 rounded-lg bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-black/80 transition"
+                    title="下载"
+                  >
+                    <Download className="w-4 h-4" />
+                  </a>
+                </>
+              )}
+            </div>
+          );
+        })}
       </div>
 
-      {/* 当前索引 + 展开按钮 */}
-      <div className="flex items-center justify-between mt-2 px-1">
+      {/* 简约底部：索引 + 展开按钮 */}
+      <div className="flex items-center justify-between mt-3 px-1">
         <span className="text-[10px] font-mono text-zinc-500">
-          {cur + 1} / {len} · {images[cur].name || `image-${cur + 1}`}
+          {cur + 1} / {len}
         </span>
         <button
           onClick={(e) => { e.stopPropagation(); setExpanded(true); }}
@@ -1302,6 +1301,21 @@ export default function Home() {
           >
             <X className="w-5 h-5" />
           </button>
+
+          {/* 下载按钮 */}
+          {previewImages[previewIndex] && (
+            <a
+              href={previewImages[previewIndex].url}
+              download={previewImages[previewIndex].name}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="absolute top-4 right-16 z-10 p-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition"
+              title="下载"
+            >
+              <Download className="w-5 h-5" />
+            </a>
+          )}
 
           {/* 左右切换（多图时显示） */}
           {previewImages.length > 1 && (
