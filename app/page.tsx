@@ -5,7 +5,8 @@ import Image from 'next/image';
 import {
   Monitor, Smartphone, Tablet,
   Copy, Check, Send, ClipboardPaste, QrCode, Shield, Users, CheckCircle2, XCircle, Menu, X, Image as ImageIcon,
-  ChevronLeft, ChevronRight, FileText, FileArchive, FileSpreadsheet, FileVideo, File as FileIcon, Loader2, Download, Trash2
+  ChevronLeft, ChevronRight, FileText, FileArchive, FileSpreadsheet, FileVideo, File as FileIcon, Loader2, Download, Trash2,
+  List, LayoutGrid
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 
@@ -155,15 +156,18 @@ const CORS_TIP_BLOCK =
   `AllowedOrigins: ["*"]\nAllowedMethods: ["GET","PUT","HEAD"]\nAllowedHeaders: ["*"]\nExposeHeaders: ["ETag"]\nMaxAgeSeconds: 3600`;
 
 // =============================
-// 三维多图轮播（preserve-3d）
+// Swiper cards 效果：卡片堆叠叠层轮播
+// 参考: https://www.swiper.com.cn/demo/255-effect-cards.html
 // =============================
-function Carousel3D({ images, onOpen }: { images: Attachment[]; onOpen: (url: string) => void }) {
+function CardCarousel({ images, onOpen }: { images: Attachment[]; onOpen: (index: number) => void }) {
   const [cur, setCur] = useState(0);
+  const [expanded, setExpanded] = useState(false);
   const len = images.length;
   const dragXRef = useRef<number | null>(null);
   if (len === 0) return null;
 
-  const goto = (step: number) => setCur((c) => ((((c + step) % len) + len) % len));
+  const goto = (step: number) => setCur((c) => Math.max(0, Math.min(len - 1, c + step)));
+
   const onTouchStart = (e: React.TouchEvent) => { dragXRef.current = e.touches[0].clientX; };
   const onTouchEnd = (e: React.TouchEvent) => {
     if (dragXRef.current == null) return;
@@ -179,50 +183,91 @@ function Carousel3D({ images, onOpen }: { images: Attachment[]; onOpen: (url: st
     if (Math.abs(dx) > 60) goto(dx < 0 ? 1 : -1);
   };
 
+  // ---- 展开模式：逐条列表 ----
+  if (expanded) {
+    return (
+      <div className="w-full">
+        <div className="grid grid-cols-2 gap-2">
+          {images.map((img, i) => (
+            <div
+              key={i}
+              className="relative rounded-xl overflow-hidden border border-zinc-700/60 cursor-pointer group"
+              style={{ aspectRatio: '1' }}
+              onClick={(e) => { e.stopPropagation(); onOpen(i); }}
+            >
+              <img src={img.url} alt={img.name} className="w-full h-full object-cover" draggable={false} />
+              <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent px-2 py-1">
+                <span className="text-[9px] font-mono text-zinc-300 truncate block">{img.name}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+        <button
+          onClick={(e) => { e.stopPropagation(); setExpanded(false); }}
+          className="mt-2 w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 text-[11px] font-mono transition"
+        >
+          <LayoutGrid className="w-3 h-3" /> 收起为轮播
+        </button>
+      </div>
+    );
+  }
+
+  // ---- 轮播模式：Swiper cards 堆叠效果 ----
   return (
-    <div className="relative w-full mx-auto select-none" style={{ maxWidth: 420 }}
+    <div className="relative w-full mx-auto select-none" style={{ maxWidth: 360 }}
       onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}
       onMouseDown={onMouseDown} onMouseUp={onMouseUp} onMouseLeave={() => { dragXRef.current = null; }}
     >
-      <div
-        className="relative mx-auto mb-3 flex items-center justify-center"
-        style={{ perspective: '1400px', height: 280 }}
-      >
-        <div
-          className="relative w-[260px] h-[260px]"
-          style={{ transformStyle: 'preserve-3d' }}
-        >
+      {/* 卡片堆叠区 */}
+      <div className="relative mx-auto" style={{ height: 280 }}>
+        <div className="relative w-full h-full" style={{ perspective: '1200px' }}>
           {images.map((img, i) => {
-            let d = i - cur;
-            if (d > len / 2) d -= len;
-            if (d < -len / 2) d += len;
-            const absD = Math.abs(d);
-            const rotateY = d * 38;
-            const translateX = d * 70;
-            const translateZ = -absD * 200;
-            const opacity = absD === 0 ? 1 : (absD === 1 ? 0.7 : absD === 2 ? 0.38 : 0);
-            const scale = absD === 0 ? 1 : (absD === 1 ? 0.84 : 0.62);
-            const zIndex = 100 - absD;
-            const isCenter = absD === 0;
+            const offset = i - cur; // 0 = 当前，正数 = 后面，负数 = 已翻过
+            const absOff = Math.abs(offset);
+            const isActive = offset === 0;
+
+            // 已翻过的卡片（offset < 0）：向上飞出 + 透明
+            if (offset < 0) {
+              return (
+                <div
+                  key={i}
+                  className="absolute inset-0 rounded-2xl overflow-hidden bg-zinc-900 shadow-2xl"
+                  style={{
+                    transform: `translateY(-60%) scale(0.85) rotate(-8deg)`,
+                    opacity: 0,
+                    zIndex: 0,
+                    transition: 'all 400ms cubic-bezier(.22,1,.36,1)',
+                    pointerEvents: 'none',
+                  }}
+                >
+                  <img src={img.url} alt={img.name} className="w-full h-full object-cover" draggable={false} />
+                </div>
+              );
+            }
+
+            // 后面堆叠的卡片（offset > 0）：向下偏移 + 缩小 + 旋转
+            const translateY = absOff * 14;
+            const scale = 1 - absOff * 0.06;
+            const rotate = absOff * 2.5;
+            const opacity = absOff > 3 ? 0 : 1 - absOff * 0.15;
+            const zIndex = 100 - absOff;
+
             return (
               <div
                 key={i}
-                className="absolute inset-0 rounded-2xl overflow-hidden border border-black/10 bg-zinc-900 shadow-[0_18px_40px_rgba(0,0,0,0.45)]"
+                className="absolute inset-0 rounded-2xl overflow-hidden border border-white/10 bg-zinc-900 shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
                 style={{
-                  transform: `rotateY(${rotateY}deg) translateX(${translateX}px) translateZ(${translateZ}px) scale(${scale})`,
-                  opacity, zIndex,
-                  transition: 'all 420ms cubic-bezier(.22,1,.36,1)',
-                  pointerEvents: absD <= 2 ? 'auto' : 'none',
-                  backfaceVisibility: 'hidden',
+                  transform: `translateY(${translateY}px) scale(${scale}) rotate(${rotate}deg)`,
+                  opacity,
+                  zIndex,
+                  transition: 'all 400ms cubic-bezier(.22,1,.36,1)',
+                  pointerEvents: isActive ? 'auto' : 'none',
                 }}
-                onClick={(e) => { e.stopPropagation(); if (isCenter) onOpen(img.url); else setCur(i); }}
+                onClick={(e) => { e.stopPropagation(); if (isActive) onOpen(i); else setCur(i); }}
               >
                 <img src={img.url} alt={img.name} className="w-full h-full object-cover" draggable={false} />
-                {isCenter && (
-                  <button
-                    className="absolute bottom-2 right-2 px-2 py-1 text-[10px] rounded-md bg-black/60 text-white backdrop-blur"
-                    onClick={(e) => { e.stopPropagation(); onOpen(img.url); }}
-                  >全屏预览</button>
+                {isActive && (
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
                 )}
               </div>
             );
@@ -230,11 +275,12 @@ function Carousel3D({ images, onOpen }: { images: Attachment[]; onOpen: (url: st
         </div>
       </div>
 
-      {/* 左右按钮 + 页数圆点 */}
-      <div className="flex items-center justify-between px-1.5">
+      {/* 底部控制条 */}
+      <div className="flex items-center justify-between px-1 mt-3">
         <button
           onClick={(e) => { e.stopPropagation(); goto(-1); }}
-          className="p-1.5 rounded-full bg-zinc-800/80 text-zinc-300 hover:bg-zinc-700 shrink-0"
+          disabled={cur === 0}
+          className="p-1.5 rounded-full bg-zinc-800/80 text-zinc-300 hover:bg-zinc-700 disabled:opacity-30 shrink-0 transition"
           aria-label="上一张"
         >
           <ChevronLeft className="w-4 h-4" />
@@ -255,16 +301,25 @@ function Carousel3D({ images, onOpen }: { images: Attachment[]; onOpen: (url: st
 
         <button
           onClick={(e) => { e.stopPropagation(); goto(1); }}
-          className="p-1.5 rounded-full bg-zinc-800/80 text-zinc-300 hover:bg-zinc-700 shrink-0"
+          disabled={cur === len - 1}
+          className="p-1.5 rounded-full bg-zinc-800/80 text-zinc-300 hover:bg-zinc-700 disabled:opacity-30 shrink-0 transition"
           aria-label="下一张"
         >
           <ChevronRight className="w-4 h-4" />
         </button>
       </div>
 
-      {/* 当前索引 */}
-      <div className="text-center text-[11px] font-mono text-zinc-500 mt-2">
-        {images[cur].name || `image-${cur + 1}`} · {cur + 1} / {len}
+      {/* 当前索引 + 展开按钮 */}
+      <div className="flex items-center justify-between mt-2 px-1">
+        <span className="text-[10px] font-mono text-zinc-500">
+          {cur + 1} / {len} · {images[cur].name || `image-${cur + 1}`}
+        </span>
+        <button
+          onClick={(e) => { e.stopPropagation(); setExpanded(true); }}
+          className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-zinc-800/60 hover:bg-zinc-700 text-zinc-400 text-[10px] font-mono transition"
+        >
+          <List className="w-3 h-3" /> 展开列表
+        </button>
       </div>
     </div>
   );
@@ -324,8 +379,9 @@ export default function Home() {
   const [inputContent, setInputContent] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // 全屏图片预览（点单图 / 点三维轮播中心卡触发）
-  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
+  // 全屏图片预览（支持多图轮播切换）
+  const [previewImages, setPreviewImages] = useState<Attachment[] | null>(null);
+  const [previewIndex, setPreviewIndex] = useState(0);
 
   // 待发送附件（多图 + 文件 统一 pending 队列）
   type PendingAttachment = {
@@ -670,8 +726,8 @@ export default function Home() {
   const touchStartRef = useRef<{ x: number; y: number; transX: number; transY: number; twoDist: number; twoCenterX: number; twoCenterY: number; scale: number } | null>(null);
   const mouseDragRef = useRef<{ startX: number; startY: number; tx: number; ty: number } | null>(null);
   useEffect(() => {
-    if (previewImageUrl) { setImgScale(1); setImgTrans({ x: 0, y: 0 }); }
-  }, [previewImageUrl]);
+    if (previewImages) { setImgScale(1); setImgTrans({ x: 0, y: 0 }); }
+  }, [previewImages, previewIndex]);
 
   const twoFingersDistance = (t: React.TouchList | TouchList) => {
     const t0 = t.item(0)!;
@@ -888,14 +944,14 @@ export default function Home() {
                         )}
 
                         {onlySingleImage && (
-                          <div className="cursor-pointer" onClick={() => setPreviewImageUrl(images[0].url)}>
+                          <div className="cursor-pointer" onClick={() => { setPreviewImages(images); setPreviewIndex(0); }}>
                             <img src={images[0].url} alt={images[0].name || 'Sync Image'} className="max-h-60 rounded-lg object-contain hover:opacity-95 transition-opacity mx-auto" />
                           </div>
                         )}
 
                         {onlyMultiImages && (
                           <div onClick={(e) => e.stopPropagation()}>
-                            <Carousel3D images={images} onOpen={(u) => setPreviewImageUrl(u)} />
+                            <CardCarousel images={images} onOpen={(idx) => { setPreviewImages(images); setPreviewIndex(idx); }} />
                           </div>
                         )}
 
@@ -1230,21 +1286,46 @@ export default function Home() {
         </div>
       )}
 
-      {/* 全屏图片预览层（含手势） */}
-      {previewImageUrl && (
+      {/* 全屏图片预览层（含手势 + 多图轮播切换） */}
+      {previewImages && previewImages.length > 0 && (
         <div
-          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center touch-none"
+          className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center touch-none"
           style={{ touchAction: 'none' }}
-          onClick={() => setPreviewImageUrl(null)}
+          onClick={() => setPreviewImages(null)}
           onWheel={onPreviewWheel}
         >
+          {/* 关闭按钮 */}
           <button
             className="absolute top-4 right-4 z-10 p-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white"
-            onClick={(e) => { e.stopPropagation(); setPreviewImageUrl(null); }}
+            onClick={(e) => { e.stopPropagation(); setPreviewImages(null); }}
             aria-label="关闭预览"
           >
             <X className="w-5 h-5" />
           </button>
+
+          {/* 左右切换（多图时显示） */}
+          {previewImages.length > 1 && (
+            <>
+              <button
+                className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 z-10 p-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition disabled:opacity-20"
+                onClick={(e) => { e.stopPropagation(); setPreviewIndex((i) => Math.max(0, i - 1)); }}
+                disabled={previewIndex === 0}
+                aria-label="上一张"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <button
+                className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 z-10 p-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition disabled:opacity-20"
+                onClick={(e) => { e.stopPropagation(); setPreviewIndex((i) => Math.min(previewImages.length - 1, i + 1)); }}
+                disabled={previewIndex === previewImages.length - 1}
+                aria-label="下一张"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </>
+          )}
+
+          {/* 图片主体 */}
           <div
             className="max-w-[92vw] max-h-[92vh] select-none cursor-grab active:cursor-grabbing"
             style={{
@@ -1254,21 +1335,57 @@ export default function Home() {
             onClick={(e) => e.stopPropagation()}
             onTouchStart={handlePreviewTouchStart}
             onTouchMove={handlePreviewTouchMove}
-            onTouchEnd={() => { touchStartRef.current = null; }}
+            onTouchEnd={(e) => {
+              // 手势结束时检测水平滑动 → 切换图片
+              if (touchStartRef.current && imgScale <= 1.001) {
+                const dx = e.changedTouches[0]?.clientX - touchStartRef.current.x;
+                if (Math.abs(dx) > 60) {
+                  setPreviewIndex((i) => {
+                    if (dx > 0) return Math.max(0, i - 1);
+                    return Math.min(previewImages.length - 1, i + 1);
+                  });
+                }
+              }
+              touchStartRef.current = null;
+            }}
             onMouseDown={onPreviewMouseDown}
             onMouseMove={onPreviewMouseMove}
             onMouseUp={onPreviewMouseUp}
             onMouseLeave={onPreviewMouseUp}
             draggable={false}
           >
-            <img src={previewImageUrl} alt="Preview" className="max-w-[92vw] max-h-[92vh] object-contain pointer-events-none" draggable={false} />
+            <img
+              key={previewIndex}
+              src={previewImages[previewIndex]?.url}
+              alt={previewImages[previewIndex]?.name || 'Preview'}
+              className="max-w-[92vw] max-h-[92vh] object-contain pointer-events-none"
+              draggable={false}
+            />
           </div>
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 text-center text-xs font-mono text-zinc-400/80 pointer-events-none space-x-3">
-            <span>双击缩放 1x/2.5x</span>
-            <span>·</span>
-            <span>双指捏合 0.5x–8x</span>
-            <span>·</span>
-            <span>放大后可拖动</span>
+
+          {/* 底部信息条 */}
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 pointer-events-none">
+            {previewImages.length > 1 && (
+              <div className="flex items-center gap-1.5">
+                {previewImages.map((_, i) => (
+                  <button
+                    key={i}
+                    className={`rounded-full transition-all ${
+                      i === previewIndex ? 'w-5 h-2 bg-blue-500' : 'w-2 h-2 bg-white/30'
+                    }`}
+                    onClick={(e) => { e.stopPropagation(); setPreviewIndex(i); }}
+                  />
+                ))}
+              </div>
+            )}
+            <div className="text-center text-xs font-mono text-zinc-400/80 space-x-3">
+              {previewImages.length > 1 && <span>{previewIndex + 1} / {previewImages.length} · </span>}
+              <span>双击缩放 1x/2.5x</span>
+              <span>·</span>
+              <span>双指捏合 0.5x–8x</span>
+              <span>·</span>
+              <span>放大后可拖动</span>
+            </div>
           </div>
         </div>
       )}
