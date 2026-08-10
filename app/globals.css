@@ -24,3 +24,46 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* =============================
+   自定义滚动条（深色主题风格）
+   灰色圆角滑块 + 透明/深黑轨道
+   ============================= */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #3f3f46 transparent; /* Firefox: 滑块色 / 轨道色 */
+}
+
+/* WebKit (Chrome / Edge / Safari / 移动端) */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 999px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #3f3f46; /* zinc-700 灰色 */
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  transition: background 0.2s ease;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #52525b; /* zinc-600 稍亮 */
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:active {
+  background: #71717a; /* zinc-500 */
+}
+
+/* 角落（横向+纵向滚动条交叉处） */
+.custom-scrollbar::-webkit-scrollbar-corner {
+  background: transparent;
+}
