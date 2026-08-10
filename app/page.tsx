@@ -761,6 +761,7 @@ export default function Home() {
 
   const myApproved = allDevices.find((d) => d.id === myId)?.status === 'approved';
   const qrUrl = useMemo(() => {
+    if (typeof window === 'undefined') return '';
     const u = new URL(window.location.href);
     return u.toString();
   }, [room]);
