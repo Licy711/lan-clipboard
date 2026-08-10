@@ -61,14 +61,18 @@ export async function POST(req: Request) {
 
     const existingData = await redis.get(devKey);
     let currentStatus = status || 'pending';
+    let isOwner = false;
 
     if (existingData) {
       const parsed = JSON.parse(existingData);
-      currentStatus = parsed.status; 
+      currentStatus = parsed.status;
+      isOwner = parsed.isOwner === true; // 保留房主标记
     } else {
       const keys = await redis.keys(`room_dev:${room}:*`);
       if (keys.length === 0) {
+        // 第一个进房间的设备 = 房主，自动 approved
         currentStatus = 'approved';
+        isOwner = true;
       }
     }
 
@@ -77,6 +81,7 @@ export async function POST(req: Request) {
       name: name || '未知设备',
       type: type || 'desktop',
       status: currentStatus,
+      isOwner,
       updatedAt: Date.now(),
     };
     await redis.set(devKey, JSON.stringify(deviceData), 'EX', 45);

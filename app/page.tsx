@@ -15,6 +15,7 @@ interface ClientDevice {
   name: string;
   type: string;
   status: 'pending' | 'approved';
+  isOwner?: boolean;
   updatedAt: number;
 }
 
@@ -804,13 +805,10 @@ export default function Home() {
     if (imgScale + delta <= 1.001) setImgTrans({ x: 0, y: 0 });
   };
 
-  // ---- 计算：我是不是管理员 ----
+  // ---- 只有房主（第一个进房间的设备）能审批 ----
   const isApprover = useMemo(() => {
-    if (allDevices.length === 0) return true;
-    return allDevices.find((d) => d.id === myId)?.status === 'approved' &&
-      allDevices.every((d) => (d.updatedAt ?? 0) <= (allDevices.find(x => x.id === myId)?.updatedAt ?? 0))
-      ? true
-      : allDevices.find((d) => d.id === myId && d.status === 'approved') !== undefined;
+    const me = allDevices.find((d) => d.id === myId);
+    return me?.isOwner === true;
   }, [allDevices, myId]);
   const approvedCount = allDevices.filter((d) => d.status === 'approved').length;
 
